@@ -1,8 +1,8 @@
-from pydantic import BaseModel
-from datetime import date
+from sqlmodel import SQLModel
 from typing import Optional
+from datetime import date
 
-class StockDataBase(BaseModel):
+class StockDataBase(SQLModel):
     date: date
     trade_code: str
     high: Optional[float]
@@ -19,6 +19,3 @@ class StockDataUpdate(StockDataBase):
 
 class StockDataOut(StockDataBase):
     id: int
-
-    class Config:
-        orm_mode = True

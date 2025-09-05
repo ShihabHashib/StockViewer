@@ -1,4 +1,3 @@
-"use client";
 import React, { useEffect, useState } from "react";
 import {
   fetchStocks,
@@ -6,8 +5,9 @@ import {
   updateStock,
   deleteStock,
 } from "../services/api";
+import LoadingSpinner from "./LoadingSpinner";
 
-type Stock = {
+interface Stock {
   id: number;
   date: string;
   trade_code: string;
@@ -16,113 +16,197 @@ type Stock = {
   open: number;
   close: number;
   volume: number;
-};
+}
 
-const SqlTable = () => {
-  const [data, setData] = useState<Stock[]>([]);
+const SqlModel: React.FC = () => {
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [newStock, setNewStock] = useState<Omit<Stock, "id">>({
+    date: "",
+    trade_code: "",
+    high: 0,
+    low: 0,
+    open: 0,
+    close: 0,
+    volume: 0,
+  });
 
-  const loadData = async (page: number) => {
-    setLoading(true);
+  // Fetch stocks whenever page changes
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchStocks(page, 20); // 20 per page
+        setStocks(data);
+      } catch (err) {
+        console.error("Error fetching stocks", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [page]);
+
+  // Handle add stock
+  const handleAdd = async () => {
     try {
-      const res = await fetchStocks(page, 20);
-      setData(res);
-    } finally {
-      setLoading(false);
+      await createStock(newStock);
+      const data = await fetchStocks(page, 20);
+      setStocks(data);
+      setNewStock({
+        date: "",
+        trade_code: "",
+        high: 0,
+        low: 0,
+        open: 0,
+        close: 0,
+        volume: 0,
+      });
+    } catch (err) {
+      console.error("Error adding stock", err);
     }
   };
 
-  useEffect(() => {
-    loadData(page);
-  }, [page]);
-
-  const handleAdd = async (newStock: Stock) => {
-    const created = await createStock(newStock);
-    setData([...data, created]);
+  // Handle edit stock inline
+  const handleUpdate = async (id: number, field: keyof Stock, value: any) => {
+    try {
+      const stock = stocks.find((s) => s.id === id);
+      if (!stock) return;
+      const updated = { ...stock, [field]: value };
+      await updateStock(id, updated);
+      setStocks((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    } catch (err) {
+      console.error("Error updating stock", err);
+    }
   };
 
-  const handleUpdate = async (id: number, updatedStock: Stock) => {
-    const updated = await updateStock(id, updatedStock);
-    setData(data.map((row) => (row.id === id ? updated : row)));
-  };
-
+  // Handle delete
   const handleDelete = async (id: number) => {
-    await deleteStock(id);
-    setData(data.filter((row) => row.id !== id));
+    try {
+      await deleteStock(id);
+      setStocks((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      console.error("Error deleting stock", err);
+    }
   };
 
   return (
-    <div className="p-6 backdrop-blur-lg bg-white/10 rounded-xl shadow-xl">
-      <h2 className="text-2xl font-bold mb-4">SQL Model Table</h2>
+    <div className="p-4">
+      <h2 className="text-xl font-bold mb-4">SQL Model (Postgres)</h2>
 
       {loading ? (
-        <div className="animate-spin border-4 border-blue-500 border-t-transparent w-12 h-12 rounded-full mx-auto" />
+        <LoadingSpinner />
       ) : (
-        <table className="w-full border border-gray-700 rounded-lg text-white">
-          <thead className="bg-gray-800/50">
-            <tr>
-              <th>Date</th>
-              <th>Trade Code</th>
-              <th>High</th>
-              <th>Low</th>
-              <th>Open</th>
-              <th>Close</th>
-              <th>Volume</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-700/40">
-                <td>{row.date}</td>
-                <td>{row.trade_code}</td>
-                <td>{row.high}</td>
-                <td>{row.low}</td>
-                <td>{row.open}</td>
-                <td>{row.close}</td>
-                <td>{row.volume}</td>
-                <td className="space-x-2">
-                  <button
-                    onClick={() =>
-                      handleUpdate(row.id, { ...row, close: row.close + 1 })
-                    }
-                    className="px-2 py-1 bg-blue-500 rounded"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(row.id)}
-                    className="px-2 py-1 bg-red-500 rounded"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
+        <>
+          {/* Add stock form */}
+          <div className="mb-4 flex gap-2">
+            {Object.keys(newStock).map((field) => (
+              <input
+                key={field}
+                placeholder={field}
+                value={(newStock as any)[field]}
+                onChange={(e) =>
+                  setNewStock((prev) => ({
+                    ...prev,
+                    [field]:
+                      field === "volume" ||
+                      field === "high" ||
+                      field === "low" ||
+                      field === "open" ||
+                      field === "close"
+                        ? Number(e.target.value)
+                        : e.target.value,
+                  }))
+                }
+                className="border p-1 rounded"
+              />
             ))}
-          </tbody>
-        </table>
-      )}
+            <button
+              onClick={handleAdd}
+              className="bg-blue-500 text-white px-3 py-1 rounded"
+            >
+              Add
+            </button>
+          </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center mt-4 space-x-2">
-        <button
-          disabled={page === 1}
-          onClick={() => setPage((p) => p - 1)}
-          className="px-3 py-1 bg-gray-700 rounded disabled:opacity-50"
-        >
-          Prev
-        </button>
-        <span>Page {page}</span>
-        <button
-          onClick={() => setPage((p) => p + 1)}
-          className="px-3 py-1 bg-gray-700 rounded"
-        >
-          Next
-        </button>
-      </div>
+          {/* Table */}
+          <table className="w-full border">
+            <thead>
+              <tr className="bg-gray-200">
+                <th>ID</th>
+                <th>Date</th>
+                <th>Trade Code</th>
+                <th>High</th>
+                <th>Low</th>
+                <th>Open</th>
+                <th>Close</th>
+                <th>Volume</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stocks.map((stock) => (
+                <tr key={stock.id} className="border-b">
+                  {Object.entries(stock).map(([key, value]) =>
+                    key === "id" ? (
+                      <td key={key}>{value}</td>
+                    ) : (
+                      <td key={key}>
+                        <input
+                          value={value}
+                          onChange={(e) =>
+                            handleUpdate(
+                              stock.id,
+                              key as keyof Stock,
+                              key === "volume" ||
+                                key === "high" ||
+                                key === "low" ||
+                                key === "open" ||
+                                key === "close"
+                                ? Number(e.target.value)
+                                : e.target.value
+                            )
+                          }
+                          className="border p-1 w-full"
+                        />
+                      </td>
+                    )
+                  )}
+                  <td>
+                    <button
+                      onClick={() => handleDelete(stock.id)}
+                      className="bg-red-500 text-white px-2 py-1 rounded"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Pagination */}
+          <div className="flex justify-between mt-4">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="bg-gray-300 px-3 py-1 rounded"
+            >
+              Prev
+            </button>
+            <span>Page {page}</span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              className="bg-gray-300 px-3 py-1 rounded"
+            >
+              Next
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
 
-export default SqlTable;
+export default SqlModel;

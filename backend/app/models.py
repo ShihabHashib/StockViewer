@@ -1,14 +1,13 @@
-from sqlalchemy import Column, Integer, String, Date, Numeric, BigInteger
-from .database import Base
+from sqlmodel import SQLModel, Field
+from typing import Optional
+from datetime import date
 
-class StockData(Base):
-    __tablename__ = "stock_data"
-
-    id = Column(Integer, primary_key=True, index=True)
-    date = Column(Date, nullable=False)
-    trade_code = Column(String(50), nullable=False)
-    high = Column(Numeric)
-    low = Column(Numeric)
-    open = Column(Numeric)
-    close = Column(Numeric)
-    volume = Column(BigInteger)
+class StockData(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: date
+    trade_code: str
+    high: Optional[float]
+    low: Optional[float]
+    open: Optional[float]
+    close: Optional[float]
+    volume: Optional[int]
