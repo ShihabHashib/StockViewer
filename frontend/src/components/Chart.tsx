@@ -29,7 +29,10 @@ export default function Chart({
     .map((r) => ({
       ...r,
       close: parseFloat(r.close),
-      volume: parseInt(r.volume.replace(/,/g, "")),
+      volume:
+        typeof r.volume === "string"
+          ? parseInt(r.volume.replace(/,/g, ""))
+          : Number(r.volume),
     }));
 
   return (

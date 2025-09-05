@@ -19,6 +19,15 @@ export default function EditableTable({
   const start = 0;
   const end = page * itemsPerPage;
   const paginated = rows.slice(start, end);
+  const columns = [
+    "date",
+    "trade_code",
+    "high",
+    "low",
+    "open",
+    "close",
+    "volume",
+  ];
 
   // CRUD Handlers
   const handleEdit = (index: number) => {
@@ -57,6 +66,14 @@ export default function EditableTable({
 
   return (
     <div className="overflow-x-auto rounded-xl mt-6">
+      <div className="flex justify-center items-center my-4">
+        <button
+          onClick={handleAdd}
+          className="px-4 py-2 bg-purple-500 text-white rounded-lg"
+        >
+          ➕ Add Row
+        </button>
+      </div>
       <table className="min-w-full text-sm text-gray-800">
         <thead className="bg-white/30">
           <tr>
@@ -90,7 +107,7 @@ export default function EditableTable({
               >
                 {isEditing ? (
                   <>
-                    {Object.keys(row).map((key) => (
+                    {columns.map((key) => (
                       <td key={key} className="px-4 py-2">
                         <input
                           type="text"
@@ -119,13 +136,11 @@ export default function EditableTable({
                   </>
                 ) : (
                   <>
-                    <td className="px-4 py-2">{row.date}</td>
-                    <td className="px-4 py-2">{row.trade_code}</td>
-                    <td className="px-4 py-2">{row.high}</td>
-                    <td className="px-4 py-2">{row.low}</td>
-                    <td className="px-4 py-2">{row.open}</td>
-                    <td className="px-4 py-2">{row.close}</td>
-                    <td className="px-4 py-2">{row.volume}</td>
+                    {columns.map((key) => (
+                      <td key={key} className="px-4 py-2">
+                        {row[key]}
+                      </td>
+                    ))}
                     <td className="px-4 py-2 space-x-2">
                       <button
                         onClick={() => handleEdit(i)}
@@ -148,14 +163,8 @@ export default function EditableTable({
         </tbody>
       </table>
 
-      {/* Add + Pagination */}
-      <div className="flex justify-between items-center mt-4">
-        <button
-          onClick={handleAdd}
-          className="px-4 py-2 bg-purple-500 text-white rounded-lg"
-        >
-          ➕ Add Row
-        </button>
+      {/* Pagination */}
+      <div className="flex justify-center items-center mt-4">
         <button
           onClick={() => setPage((p) => p + 1)}
           disabled={end >= rows.length}

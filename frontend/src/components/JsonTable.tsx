@@ -1,6 +1,6 @@
 // src/components/JsonModel.tsx
 import { useEffect, useState } from "react";
-import data from "../../../backend/data/stock.json";
+import data from "../data/stock.json";
 import LoadingSpinner from "./LoadingSpinner";
 import Chart from "./Chart";
 import EditableTable from "./EditableTable";

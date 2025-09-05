@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// src/components/SqlModel.tsx
+import { useEffect, useState } from "react";
 import {
   fetchStocks,
   createStock,
@@ -6,207 +7,143 @@ import {
   deleteStock,
 } from "../services/api";
 import LoadingSpinner from "./LoadingSpinner";
+import Chart from "./Chart";
+import EditableTable from "./EditableTable";
 
-interface Stock {
-  id: number;
+type Row = {
+  id?: number | null;
   date: string;
   trade_code: string;
-  high: number;
-  low: number;
-  open: number;
-  close: number;
-  volume: number;
-}
+  high: number | string;
+  low: number | string;
+  open: number | string;
+  close: number | string;
+  volume: number | string;
+};
 
-const SqlModel: React.FC = () => {
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [newStock, setNewStock] = useState<Omit<Stock, "id">>({
-    date: "",
-    trade_code: "",
-    high: 0,
-    low: 0,
-    open: 0,
-    close: 0,
-    volume: 0,
-  });
+export default function SqlModel() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCode, setSelectedCode] = useState<string>("");
 
-  // Fetch stocks whenever page changes
+  // Load rows from backend
   useEffect(() => {
-    const loadData = async () => {
+    (async () => {
       setLoading(true);
       try {
-        const data = await fetchStocks(page, 20); // 20 per page
-        setStocks(data);
+        const data = await fetchStocks(); // uses ../services/api
+        const list: Row[] = Array.isArray(data) ? data : data?.stocks ?? [];
+
+        // Normalize: ensure date strings, and sort ascending for chart
+        list.sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
+        setRows(list);
+        if (list.length) setSelectedCode(list[0].trade_code);
       } catch (err) {
-        console.error("Error fetching stocks", err);
+        console.error("Failed to fetch SQL stocks:", err);
       } finally {
         setLoading(false);
       }
-    };
-    loadData();
-  }, [page]);
+    })();
+  }, []);
 
-  // Handle add stock
-  const handleAdd = async () => {
-    try {
-      await createStock(newStock);
-      const data = await fetchStocks(page, 20);
-      setStocks(data);
-      setNewStock({
-        date: "",
-        trade_code: "",
-        high: 0,
-        low: 0,
-        open: 0,
-        close: 0,
-        volume: 0,
-      });
-    } catch (err) {
-      console.error("Error adding stock", err);
-    }
-  };
+  const tradeCodes = Array.from(new Set(rows.map((r) => r.trade_code)));
 
-  // Handle edit stock inline
-  const handleUpdate = async (id: number, field: keyof Stock, value: any) => {
+  // Called by EditableTable when user adds/edits/deletes rows.
+  // Strategy: detect added items (no id) -> POST, deleted items -> DELETE,
+  // updated items -> PUT. After syncing, re-fetch to get canonical state.
+  const handleSetRows = async (updatedRows: Row[]) => {
+    setLoading(true);
     try {
-      const stock = stocks.find((s) => s.id === id);
-      if (!stock) return;
-      const updated = { ...stock, [field]: value };
-      await updateStock(id, updated);
-      setStocks((prev) => prev.map((s) => (s.id === id ? updated : s)));
-    } catch (err) {
-      console.error("Error updating stock", err);
-    }
-  };
+      // 1) Added rows: items that don't have an id or id not present in old rows
+      const added = updatedRows.filter(
+        (u) => u.id == null || !rows.some((r) => r.id === u.id)
+      );
 
-  // Handle delete
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteStock(id);
-      setStocks((prev) => prev.filter((s) => s.id !== id));
+      for (const a of added) {
+        try {
+          const created = await createStock(a);
+          // replace the temp row in updatedRows with created (match by index/content)
+          updatedRows = updatedRows.map((u) => (u === a ? created : u));
+        } catch (e) {
+          console.error("Create failed for", a, e);
+        }
+      }
+
+      // 2) Deleted rows: items present in old rows but not in updatedRows (by id)
+      const deleted = rows.filter(
+        (r) => r.id != null && !updatedRows.some((u) => u.id === r.id)
+      );
+      for (const d of deleted) {
+        try {
+          if (d.id != null) await deleteStock(d.id);
+        } catch (e) {
+          console.error("Delete failed for", d, e);
+        }
+      }
+
+      // 3) Updated rows: same id exists but content changed
+      for (const u of updatedRows) {
+        if (u.id != null) {
+          const original = rows.find((r) => r.id === u.id);
+          if (original && JSON.stringify(original) !== JSON.stringify(u)) {
+            try {
+              await updateStock(u.id, u);
+            } catch (e) {
+              console.error("Update failed for", u, e);
+            }
+          }
+        }
+      }
+
+      // 4) Re-fetch canonical list from backend to ensure IDs and ordering are correct
+      const fresh = await fetchStocks();
+      const freshList: Row[] = Array.isArray(fresh)
+        ? fresh
+        : fresh?.stocks ?? [];
+      freshList.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      setRows(freshList);
+
+      // if selectedCode disappeared, reset it
+      if (
+        freshList.length &&
+        !freshList.some((r) => r.trade_code === selectedCode)
+      ) {
+        setSelectedCode(freshList[0].trade_code);
+      }
     } catch (err) {
-      console.error("Error deleting stock", err);
+      console.error("Error syncing rows:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">SQL Model (Postgres)</h2>
-
+    <div className="bg-white/20 backdrop-blur-lg shadow-xl rounded-2xl overflow-hidden p-6 space-y-6">
       {loading ? (
         <LoadingSpinner />
       ) : (
         <>
-          {/* Add stock form */}
-          <div className="mb-4 flex gap-2">
-            {Object.keys(newStock).map((field) => (
-              <input
-                key={field}
-                placeholder={field}
-                value={(newStock as any)[field]}
-                onChange={(e) =>
-                  setNewStock((prev) => ({
-                    ...prev,
-                    [field]:
-                      field === "volume" ||
-                      field === "high" ||
-                      field === "low" ||
-                      field === "open" ||
-                      field === "close"
-                        ? Number(e.target.value)
-                        : e.target.value,
-                  }))
-                }
-                className="border p-1 rounded"
-              />
-            ))}
-            <button
-              onClick={handleAdd}
-              className="bg-blue-500 text-white px-3 py-1 rounded"
-            >
-              Add
-            </button>
-          </div>
+          {/* Chart */}
+          <Chart
+            data={rows}
+            tradeCodes={tradeCodes}
+            selectedCode={selectedCode}
+            onCodeChange={setSelectedCode}
+          />
 
-          {/* Table */}
-          <table className="w-full border">
-            <thead>
-              <tr className="bg-gray-200">
-                <th>ID</th>
-                <th>Date</th>
-                <th>Trade Code</th>
-                <th>High</th>
-                <th>Low</th>
-                <th>Open</th>
-                <th>Close</th>
-                <th>Volume</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stocks.map((stock) => (
-                <tr key={stock.id} className="border-b">
-                  {Object.entries(stock).map(([key, value]) =>
-                    key === "id" ? (
-                      <td key={key}>{value}</td>
-                    ) : (
-                      <td key={key}>
-                        <input
-                          value={value}
-                          onChange={(e) =>
-                            handleUpdate(
-                              stock.id,
-                              key as keyof Stock,
-                              key === "volume" ||
-                                key === "high" ||
-                                key === "low" ||
-                                key === "open" ||
-                                key === "close"
-                                ? Number(e.target.value)
-                                : e.target.value
-                            )
-                          }
-                          className="border p-1 w-full"
-                        />
-                      </td>
-                    )
-                  )}
-                  <td>
-                    <button
-                      onClick={() => handleDelete(stock.id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Pagination */}
-          <div className="flex justify-between mt-4">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="bg-gray-300 px-3 py-1 rounded"
-            >
-              Prev
-            </button>
-            <span>Page {page}</span>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              className="bg-gray-300 px-3 py-1 rounded"
-            >
-              Next
-            </button>
-          </div>
+          {/* Editable Table */}
+          <EditableTable
+            rows={rows}
+            setRows={handleSetRows}
+            itemsPerPage={20}
+          />
         </>
       )}
     </div>
   );
-};
-
-export default SqlModel;
+}
