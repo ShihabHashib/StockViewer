@@ -7,8 +7,10 @@ import {
   deleteStock,
 } from "../services/api";
 import LoadingSpinner from "./LoadingSpinner";
-import Chart from "./Chart";
+import React, { Suspense } from "react";
 import EditableTable from "./EditableTable";
+
+const Chart = React.lazy(() => import("./Chart"));
 
 type Row = {
   id?: number | null;
@@ -129,12 +131,14 @@ export default function SqlModel() {
       ) : (
         <>
           {/* Chart */}
-          <Chart
-            data={rows}
-            tradeCodes={tradeCodes}
-            selectedCode={selectedCode}
-            onCodeChange={setSelectedCode}
-          />
+          <Suspense fallback={<div>Loading chart...</div>}>
+            <Chart
+              data={rows}
+              tradeCodes={tradeCodes}
+              selectedCode={selectedCode}
+              onCodeChange={setSelectedCode}
+            />
+          </Suspense>
 
           {/* Editable Table */}
           <EditableTable

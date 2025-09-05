@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import data from "../data/stock.json";
 import LoadingSpinner from "./LoadingSpinner";
-import Chart from "./Chart";
+import React, { Suspense } from "react";
 import EditableTable from "./EditableTable";
+
+const Chart = React.lazy(() => import("./Chart"));
 
 export default function JsonModel() {
   const [rows, setRows] = useState<any[]>([]);
@@ -32,12 +34,15 @@ export default function JsonModel() {
         <LoadingSpinner />
       ) : (
         <>
-          <Chart
-            data={rows}
-            tradeCodes={tradeCodes}
-            selectedCode={selectedCode}
-            onCodeChange={setSelectedCode}
-          />
+          <Suspense fallback={<div>Loading chart...</div>}>
+            <Chart
+              data={rows}
+              tradeCodes={tradeCodes}
+              selectedCode={selectedCode}
+              onCodeChange={setSelectedCode}
+            />
+          </Suspense>
+
           <EditableTable rows={rows} setRows={setRows} itemsPerPage={20} />
         </>
       )}

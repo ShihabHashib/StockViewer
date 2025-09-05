@@ -9,7 +9,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 # -------------------
 # DATABASE
 # -------------------
-DATABASE_URL = "postgresql://stock_pnxc_user:cMQd1QnbyRwSrwz28sZ2yDpkEVxckfkx@dpg-d2smtap5pdvs739l9b9g-a.oregon-postgres.render.com/stock_pnxc" # Example for PostgreSQL on Render.com - Yes I know It's risky
+DATABASE_URL = "postgresql://root:hMI7NYnXiggXPpYyG8MDtm5EZgZskGG5@dpg-d2tfjkje5dus73dq4ge0-a.oregon-postgres.render.com/stock_data_2i5f" # Example for PostgreSQL on Render.com - Yes I know It's risky
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
